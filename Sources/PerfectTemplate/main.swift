@@ -22,25 +22,60 @@ import PerfectHTTPServer
 
 // An example request handler.
 // This 'handler' function can be referenced directly in the configuration below.
-func handler(request: HTTPRequest, response: HTTPResponse) {
-	// Respond with a simple message.
-	response.setHeader(.contentType, value: "text/html")
-	response.appendBody(string: "<html><title>Hello, world!</title><body>Hello, world!</body></html>")
-	// Ensure that response.completed() is called when your processing is done.
+func plaintextHandler(request: HTTPRequest, response: HTTPResponse) {
+
+	response.appendBody(string: "Hello, World!")
+
+    setHeaders(response: response, contentType: "text/plain")
+
 	response.completed()
 }
 
-// Configure one server which:
-//	* Serves the hello world message at <host>:<port>/
-//	* Serves static files out of the "./webroot"
-//		directory (which must be located in the current working directory).
-//	* Performs content compression on outgoing data when appropriate.
+func jsonHandler(request: HTTPRequest, response: HTTPResponse) {
+
+    var helloDictionary: [String: String] = [:]
+    helloDictionary["message"] = "Hello, World!"
+
+    let errorPayload: [String: Any] = [
+        "error": "Could not set body!"
+    ]
+
+    var responseString: String = ""
+    var errorString: String = ""
+    do {
+        errorString = try errorPayload.jsonEncodedString()
+    } catch {
+        // Nothing to do here - we already have an empty value
+    }
+
+    do {
+        responseString = try helloDictionary.jsonEncodedString()
+    } catch {
+        response.status = HTTPResponseStatus.internalServerError
+        response.appendBody(string: errorString)
+    }
+
+    response.appendBody(string: responseString)
+
+    setHeaders(response: response, contentType: "application/json")
+    response.completed()
+}
+
+// Helpers
+
+func setHeaders(response: HTTPResponse, contentType: String) {
+
+    response.setHeader(.contentType, value: contentType)
+    response.setHeader(.custom(name: "Server"), value: "Perfect")
+}
+
 var routes = Routes()
-routes.add(method: .get, uri: "/", handler: handler)
+routes.add(method: .get, uri: "/json", handler: jsonHandler)
+routes.add(method: .get, uri: "/plaintext", handler: plaintextHandler)
 routes.add(method: .get, uri: "/**",
 		   handler: StaticFileHandler(documentRoot: "./webroot", allowResponseFilters: true).handleRequest)
 try HTTPServer.launch(name: "localhost",
-					  port: 8181,
+					  port: 8080,
 					  routes: routes,
 					  responseFilters: [
 						(PerfectHTTPServer.HTTPFilter.contentCompression(data: [:]), HTTPFilterPriority.high)])
